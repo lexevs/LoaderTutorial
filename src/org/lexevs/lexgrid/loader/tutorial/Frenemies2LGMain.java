@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.LexGrid.codingSchemes.CodingScheme;
 import org.LexGrid.commonTypes.Properties;
@@ -18,8 +17,13 @@ import org.LexGrid.concepts.Entities;
 import org.LexGrid.concepts.Entity;
 import org.LexGrid.concepts.Presentation;
 import org.LexGrid.naming.Mappings;
+import org.LexGrid.naming.SupportedAssociation;
+import org.LexGrid.naming.SupportedAssociationQualifier;
+import org.LexGrid.naming.SupportedCodingScheme;
 import org.LexGrid.naming.SupportedContainerName;
+import org.LexGrid.naming.SupportedNamespace;
 import org.LexGrid.naming.SupportedProperty;
+import org.LexGrid.naming.SupportedPropertyQualifier;
 import org.LexGrid.relations.AssociationPredicate;
 import org.LexGrid.relations.AssociationQualification;
 import org.LexGrid.relations.AssociationSource;
@@ -33,6 +37,11 @@ import org.apache.commons.lang3.StringUtils;
 public class Frenemies2LGMain {
 	  Hashtable<String, AssociationPredicate> assocPredicateNames = new Hashtable<String, AssociationPredicate>();
 	  Hashtable<String, AssociationSource> assocSources = new Hashtable<String, AssociationSource>();
+	  Hashtable<String, SupportedAssociation> supportedAssoc = new Hashtable<String, SupportedAssociation>();
+	  Hashtable<String, SupportedProperty> supportedProps = new Hashtable<String, SupportedProperty>();
+	  Hashtable<String, SupportedAssociationQualifier> supportedAssocQual = new Hashtable<String, SupportedAssociationQualifier>();
+	  Hashtable<String, SupportedPropertyQualifier> supportedPropQual = new Hashtable<String, SupportedPropertyQualifier>();
+	  
 	  
 	public CodingScheme map(URI resourceUri) throws Exception {
 		Entity entity = null;
@@ -67,31 +76,79 @@ public class Frenemies2LGMain {
         	break;
         	case "Id": entity = setEntity(rec, scheme);
         	break;
-        	case "Property": property = addEntityProperty(rec, entity);
+        	case "Property": property = addEntityProperty(rec, entity, scheme);
         	break;
-        	case "qualifier" : addPropertyQualifier(rec, property);
+        	case "qualifier" : addPropertyQualifier(rec, property, scheme);
         	break;
         	case "assocId": targetAssoc = addAssociation(rec, scheme);
         	break;
-        	case "restriction": addAssociationQualifier(rec, targetAssoc);
+        	case "restriction": addAssociationQualifier(rec, targetAssoc, scheme);
         	}
 
         }
-        
+        //Start creating meta data assertions
+        //Add supported coding scheme for enclosing code system
+        SupportedCodingScheme suppCodingScheme = new SupportedCodingScheme();
+        suppCodingScheme.setContent(scheme.getCodingSchemeName());
+        suppCodingScheme.setIsImported(false);
+        suppCodingScheme.setLocalId(scheme.getCodingSchemeName());
+        suppCodingScheme.setUri(scheme.getCodingSchemeURI());
+        scheme.getMappings().addSupportedCodingScheme(suppCodingScheme);
+        //Add supported namespace for this code system
+        //This is where you could add other supported namespaces
+        SupportedNamespace suppNS = new SupportedNamespace();
+        suppNS.setContent(scheme.getCodingSchemeName());
+        suppNS.setEquivalentCodingScheme(scheme.getCodingSchemeName());
+        suppNS.setLocalId(scheme.getCodingSchemeName());
+        suppNS.setUri(scheme.getCodingSchemeURI());
+        scheme.getMappings().addSupportedNamespace(suppNS);
+        //Add predicates and supported associations
 		Iterator<Map.Entry<String, AssociationPredicate>> itr = assocPredicateNames.entrySet().iterator();
 		while(itr.hasNext()){
+			AssociationPredicate predicate = itr.next().getValue();
 			scheme.getRelations(0).addAssociationPredicate(itr.next().getValue());
+			SupportedAssociation spAss = new SupportedAssociation();
+			spAss.setCodingScheme(scheme.getCodingSchemeName());
+			spAss.setContent(predicate.getAssociationName());
+			spAss.setEntityCodeNamespace(scheme.getCodingSchemeName());
+			spAss.setUri(scheme.getCodingSchemeURI());
+			scheme.getMappings().addSupportedAssociation(spAss);
 		}
+		
+		//Supported Properties
+		Iterator<Map.Entry<String, SupportedProperty>> propItr = supportedProps.entrySet().iterator();
+		while(propItr.hasNext()){
+			scheme.getMappings().addSupportedProperty(propItr.next().getValue());
+		}
+		
+		//Supported Property Qualifiers
+		Iterator<Map.Entry<String, SupportedPropertyQualifier>> propQualItr = supportedPropQual.entrySet().iterator();
+		while(propQualItr.hasNext()){
+			scheme.getMappings().addSupportedPropertyQualifier(propQualItr.next().getValue());
+		}
+		//Supported Association Qualifiers
+		Iterator<Map.Entry<String, SupportedAssociationQualifier>> assQualItr = supportedAssocQual.entrySet().iterator();
+		while(assQualItr.hasNext()){
+			scheme.getMappings().addSupportedAssociationQualifier(assQualItr.next().getValue());
+		}
+		
 		return scheme;
 	}
 	
-	private void addAssociationQualifier(CSVRecord rec, AssociationTarget targetAssoc) {
+	private void addAssociationQualifier(CSVRecord rec, AssociationTarget targetAssoc, CodingScheme scheme) {
 		AssociationQualification qual = new AssociationQualification();
 		qual.setAssociationQualifier(rec.get(0));
 		Text text = new Text();
 		text.setContent(rec.get(1));
 		qual.setQualifierText(text);
 		targetAssoc.addAssociationQualification(qual);
+		SupportedAssociationQualifier supAsscQ = new SupportedAssociationQualifier();
+		supAsscQ.setContent(rec.get(0));
+		supAsscQ.setLocalId(rec.get(0));
+		supAsscQ.setUri(scheme.getCodingSchemeURI());
+		if(!supportedAssocQual.containsKey(rec.get(0))){
+			supportedAssocQual.put(rec.get(0), supAsscQ);
+		}
 		
 	}
 
@@ -131,16 +188,23 @@ public class Frenemies2LGMain {
 	}
 
 
-	private void addPropertyQualifier(CSVRecord rec, Property property) {
+	private void addPropertyQualifier(CSVRecord rec, Property property, CodingScheme scheme) {
 		PropertyQualifier qual = new PropertyQualifier();
 		qual.setPropertyQualifierName(rec.get(0));
 		Text value = new Text();
 		value.setContent(rec.get(1));
 		qual.setValue(value);
 		property.addPropertyQualifier(qual);
+		if(supportedProps.containsKey(rec.get(0))){
+		SupportedPropertyQualifier suppPropQ = new SupportedPropertyQualifier();
+		suppPropQ.setContent(rec.get(0));
+		suppPropQ.setLocalId(rec.get(0));
+		suppPropQ.setUri(scheme.getCodingSchemeURI());
+		supportedPropQual.put(rec.get(0), suppPropQ);
+		}
 	}
 
-	private Property addEntityProperty(CSVRecord rec, Entity entity) {
+	private Property addEntityProperty(CSVRecord rec, Entity entity, CodingScheme scheme) {
 		Property prop = null;
 		switch (rec.get(1)) {
 		case "Presentation":
@@ -155,7 +219,8 @@ public class Frenemies2LGMain {
 			entity.addComment((Comment)prop);
 		default:
 			prop = new Property();
-			entity.addProperty(prop);;
+			entity.addProperty(prop);
+			
 			//supported property stuff should go here
 		}
 		prop.setPropertyName(rec.get(1));
@@ -163,6 +228,13 @@ public class Frenemies2LGMain {
 		value.setContent(rec.get(2));
 		prop.setValue(value);
 		entity.addAnyProperty(prop);
+		if(!supportedProps.contains(value)){
+			SupportedProperty supProp = new SupportedProperty();
+			supProp.setContent(rec.get(1));
+			supProp.setLocalId(rec.get(1));
+			supProp.setUri(scheme.getCodingSchemeURI());
+			supportedProps.put(rec.get(1), supProp);
+		}
 		return prop;
 	}
 
