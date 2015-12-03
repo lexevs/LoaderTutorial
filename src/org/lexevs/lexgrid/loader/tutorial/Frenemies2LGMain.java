@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.LexGrid.codingSchemes.CodingScheme;
+import org.LexGrid.commonTypes.EntityDescription;
 import org.LexGrid.commonTypes.Properties;
 import org.LexGrid.commonTypes.Property;
 import org.LexGrid.commonTypes.PropertyQualifier;
@@ -48,15 +49,21 @@ public class Frenemies2LGMain {
     	Property property = null;
     	AssociationTarget targetAssoc = null;
         CodingScheme scheme = new CodingScheme();
+        scheme.setApproxNumConcepts(7L);
+        scheme.setDefaultLanguage("en");
+        scheme.setIsActive(true);
+        EntityDescription ed = new EntityDescription();
+        ed.setContent("description");
+        scheme.setEntityDescription(ed);
         Relations rels = new Relations();
         rels.setContainerName("defaultRelations");
-        scheme.addRelations(new Relations());
+        scheme.addRelations(rels);
         scheme.setEntities(new Entities());
         scheme.setMappings(new Mappings());
         //Add a supported container for a set of Association Predicates
         SupportedContainerName containerName = new SupportedContainerName();
-        containerName.setContent("defaultContainer");
-        containerName.setContent("defaultContainer");
+        containerName.setContent("defaultRelations");
+        containerName.setLocalId("defaultRelations");
         containerName.setUri(scheme.getCodingSchemeURI());
         scheme.getMappings().addSupportedContainerName(containerName);
         CSVParser parser = CSVParser.parse(new File(resourceUri.getPath()), Charset.defaultCharset(), CSVFormat.DEFAULT);
@@ -65,6 +72,7 @@ public class Frenemies2LGMain {
 
 			switch(rec.get(0)){
         	case "Scheme": scheme.setCodingSchemeName(rec.get(1));
+            scheme.setFormalName(rec.get(1));
         	break;
         	case "Version": scheme.setRepresentsVersion(rec.get(1));
         	break;
@@ -106,10 +114,11 @@ public class Frenemies2LGMain {
 		Iterator<Map.Entry<String, AssociationPredicate>> itr = assocPredicateNames.entrySet().iterator();
 		while(itr.hasNext()){
 			AssociationPredicate predicate = itr.next().getValue();
-			scheme.getRelations(0).addAssociationPredicate(itr.next().getValue());
+			scheme.getRelations(0).addAssociationPredicate(predicate);
 			SupportedAssociation spAss = new SupportedAssociation();
 			spAss.setCodingScheme(scheme.getCodingSchemeName());
 			spAss.setContent(predicate.getAssociationName());
+			spAss.setLocalId(predicate.getAssociationName());
 			spAss.setEntityCodeNamespace(scheme.getCodingSchemeName());
 			spAss.setUri(scheme.getCodingSchemeURI());
 			scheme.getMappings().addSupportedAssociation(spAss);
@@ -156,17 +165,14 @@ public class Frenemies2LGMain {
 		AssociationSource source = null;
 		AssociationPredicate ap = null;
 		AssociationTarget target = null;
-		if(!assocSources.containsKey(rec.get(2))){
+
 		source = new AssociationSource();
 		source.setSourceEntityCode(rec.get(2));
 		source.setSourceEntityCodeNamespace(scheme.getCodingSchemeName());
-		assocSources.put(rec.get(2), source);
-		}
-		else{
-			source = assocSources.get(rec.get(2));
-		}
+
 		target = new AssociationTarget();
 		target.setTargetEntityCode(rec.get(4));
+		target.setTargetEntityCodeNamespace(scheme.getCodingSchemeName());
 		source.getTargetAsReference().add(target);
 		
 		if(!assocPredicateNames.containsKey(rec.get(3))){
@@ -190,36 +196,39 @@ public class Frenemies2LGMain {
 
 	private void addPropertyQualifier(CSVRecord rec, Property property, CodingScheme scheme) {
 		PropertyQualifier qual = new PropertyQualifier();
-		qual.setPropertyQualifierName(rec.get(0));
+		qual.setPropertyQualifierName(rec.get(1));
 		Text value = new Text();
-		value.setContent(rec.get(1));
+		value.setContent(rec.get(2));
 		qual.setValue(value);
 		property.addPropertyQualifier(qual);
-		if(supportedProps.containsKey(rec.get(0))){
+		if(supportedPropQual.containsKey(rec.get(1))){
 		SupportedPropertyQualifier suppPropQ = new SupportedPropertyQualifier();
-		suppPropQ.setContent(rec.get(0));
-		suppPropQ.setLocalId(rec.get(0));
+		suppPropQ.setContent(rec.get(1));
+		suppPropQ.setLocalId(rec.get(1));
 		suppPropQ.setUri(scheme.getCodingSchemeURI());
-		supportedPropQual.put(rec.get(0), suppPropQ);
+		supportedPropQual.put(rec.get(1), suppPropQ);
 		}
 	}
 
 	private Property addEntityProperty(CSVRecord rec, Entity entity, CodingScheme scheme) {
 		Property prop = null;
+		EntityDescription ed = new EntityDescription();
 		switch (rec.get(1)) {
 		case "Presentation":
 			prop = new Presentation();
+			
 			if (StringUtils.isNotBlank(rec.get(3)) && rec.get(3).equals("preferred")) {
 				((Presentation) prop).setIsPreferred(true);
 			}
-			entity.addPresentation((Presentation)prop);
+			entity.addAnyProperty((Presentation)prop);
+			
 			break;
 		case "Commment":
 			prop = new Comment();
-			entity.addComment((Comment)prop);
+			entity.addAnyProperty((Comment)prop);
 		default:
 			prop = new Property();
-			entity.addProperty(prop);
+			entity.addAnyProperty(prop);
 			
 			//supported property stuff should go here
 		}
@@ -227,13 +236,17 @@ public class Frenemies2LGMain {
 		Text value = new Text();
 		value.setContent(rec.get(2));
 		prop.setValue(value);
-		entity.addAnyProperty(prop);
 		if(!supportedProps.contains(value)){
 			SupportedProperty supProp = new SupportedProperty();
 			supProp.setContent(rec.get(1));
 			supProp.setLocalId(rec.get(1));
 			supProp.setUri(scheme.getCodingSchemeURI());
 			supportedProps.put(rec.get(1), supProp);
+		}
+
+		if(entity.getEntityDescription() == null)
+		{		ed.setContent(rec.get(2));
+			entity.setEntityDescription(ed);
 		}
 		return prop;
 	}
@@ -253,7 +266,7 @@ public class Frenemies2LGMain {
 		text.setContent(rec.get(1));
 		prop.setValue(text);
 		SupportedProperty suppProp = new SupportedProperty();
-		suppProp.setContent(rec.get(1));
+		suppProp.setContent(rec.get(0));
 		suppProp.setLocalId(rec.get(0));
 		suppProp.setUri(scheme.getCodingSchemeURI() != null? scheme.getCodingSchemeURI(): "");
 		scheme.getMappings().addSupportedProperty(suppProp);
