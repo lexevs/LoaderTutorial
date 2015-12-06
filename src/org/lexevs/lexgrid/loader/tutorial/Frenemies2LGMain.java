@@ -36,6 +36,7 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.lang3.StringUtils;
 
 public class Frenemies2LGMain {
+	//Create some contianers to help track supported assertions in this coding scheme
 	  Hashtable<String, AssociationPredicate> assocPredicateNames = new Hashtable<String, AssociationPredicate>();
 	  Hashtable<String, AssociationSource> assocSources = new Hashtable<String, AssociationSource>();
 	  Hashtable<String, SupportedAssociation> supportedAssoc = new Hashtable<String, SupportedAssociation>();
@@ -44,28 +45,54 @@ public class Frenemies2LGMain {
 	  Hashtable<String, SupportedPropertyQualifier> supportedPropQual = new Hashtable<String, SupportedPropertyQualifier>();
 	  
 	  
+	  
+	/**
+	 * @param resourceUri
+	 * @return CodingScheme
+	 * @throws Exception
+	 * 
+	 * Main entry point into the class which provides a coding scheme for 
+	 * LexEVS to process into data base and lucene index entries
+	 */
 	public CodingScheme map(URI resourceUri) throws Exception {
+		
+		//Some elements need to have references in this scope
+		//to allow continued processing
 		Entity entity = null;
     	Property property = null;
     	AssociationTarget targetAssoc = null;
+    	
+    	//Begin to assert coding scheme metadata
+    	//This is a curation activity and requires
+    	//input from the source author
         CodingScheme scheme = new CodingScheme();
-        scheme.setApproxNumConcepts(7L);
+        scheme.setApproxNumConcepts(6L);
         scheme.setDefaultLanguage("en");
         scheme.setIsActive(true);
         EntityDescription ed = new EntityDescription();
         ed.setContent("description");
         scheme.setEntityDescription(ed);
+        
+        //Adding a container for associations
         Relations rels = new Relations();
         rels.setContainerName("defaultRelations");
         scheme.addRelations(rels);
+        
+        //Initializing container for Entities
         scheme.setEntities(new Entities());
+        //Initializing a container for assertions
+        //made by the coding scheme
         scheme.setMappings(new Mappings());
+        
         //Add a supported container for a set of Association Predicates
         SupportedContainerName containerName = new SupportedContainerName();
         containerName.setContent("defaultRelations");
         containerName.setLocalId("defaultRelations");
         containerName.setUri(scheme.getCodingSchemeURI());
         scheme.getMappings().addSupportedContainerName(containerName);
+        
+        //Using a parsing library to process line by line
+        //the comma separated value file
         CSVParser parser = CSVParser.parse(new File(resourceUri.getPath()), Charset.defaultCharset(), CSVFormat.DEFAULT);
         for(CSVRecord rec: parser){
         	System.out.println("First record " + rec.get(0));
@@ -144,6 +171,9 @@ public class Frenemies2LGMain {
 		return scheme;
 	}
 	
+	//Boiler plate for association qualifiers
+	//also tracking the coding scheme assertions about
+	//what is supported as association qualifiers
 	private void addAssociationQualifier(CSVRecord rec, AssociationTarget targetAssoc, CodingScheme scheme) {
 		AssociationQualification qual = new AssociationQualification();
 		qual.setAssociationQualifier(rec.get(0));
@@ -161,6 +191,9 @@ public class Frenemies2LGMain {
 		
 	}
 
+	//Boiler plate allowing the creation of an association 
+	//Predicates are tracked for later inclusion in predicate table
+	//as well as assertions about supported associations
 	private AssociationTarget addAssociation(CSVRecord rec, CodingScheme scheme) {
 		AssociationSource source = null;
 		AssociationPredicate ap = null;
@@ -194,6 +227,8 @@ public class Frenemies2LGMain {
 	}
 
 
+	//Boiler plate for property qualifier createion
+	//Usual assertion tracking 
 	private void addPropertyQualifier(CSVRecord rec, Property property, CodingScheme scheme) {
 		PropertyQualifier qual = new PropertyQualifier();
 		qual.setPropertyQualifierName(rec.get(1));
@@ -210,6 +245,8 @@ public class Frenemies2LGMain {
 		}
 	}
 
+	//Boiler plate for property creation
+	//Assertions about supported properties tracked as well
 	private Property addEntityProperty(CSVRecord rec, Entity entity, CodingScheme scheme) {
 		Property prop = null;
 		EntityDescription ed = new EntityDescription();
@@ -229,8 +266,7 @@ public class Frenemies2LGMain {
 		default:
 			prop = new Property();
 			entity.addAnyProperty(prop);
-			
-			//supported property stuff should go here
+
 		}
 		prop.setPropertyName(rec.get(1));
 		Text value = new Text();
@@ -251,6 +287,7 @@ public class Frenemies2LGMain {
 		return prop;
 	}
 
+	//Entity creation boiler plate
 	private Entity setEntity(CSVRecord rec, CodingScheme scheme) {
 		Entity entity = new Entity();
 		entity.setEntityCode(rec.get(1));
@@ -259,6 +296,7 @@ public class Frenemies2LGMain {
 		return entity;
 	}
 
+	//Some coding scheme metadata boiler plate
 	private void setAuthorProperty(CSVRecord rec, CodingScheme scheme) {
 		Property prop = new Property();
 		prop.setPropertyName(rec.get(0));
@@ -276,6 +314,8 @@ public class Frenemies2LGMain {
 		
 	}
 
+	//Creating a copyright element for the
+	//coding scheme
 	private void setCopyright(String string, CodingScheme scheme) {
 		Text text = new Text();
 		text.setContent(string);
